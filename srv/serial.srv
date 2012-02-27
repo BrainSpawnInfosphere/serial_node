@@ -1,7 +1,11 @@
 ######################################
-#
-#
-#
+# str: message sent to uC
+# size: how big (in bytes) of a return message 
+#       you expect
+# time: how long (in msec) the node should 
+#       wait before looking for a response from uC
+# -----------
+# str: returned message from uC
 ######################################
 string str 
 uint8 size
