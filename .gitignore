@@ -1,0 +1,7 @@
+bin
+build
+.DS_Store
+*.py
+*.pyc
+srv_gen
+old

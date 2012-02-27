@@ -1,0 +1,16 @@
+<package>
+  <description brief="serial_node">
+
+     serial_node
+
+  </description>
+  <author>Kevin Walchko</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/serial_node</url>
+  <depend package="roscpp"/>
+  <depend package="std_msgs"/>
+
+</package>
+
+
