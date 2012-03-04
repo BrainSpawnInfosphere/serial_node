@@ -28,19 +28,19 @@ At this time I do not do any kind of check sum, but I am thinking about it.
 
 	rosrun serial_port serial_port <uC> <port> <baud> <debug>
 
-* uC: a number that gets appended to the service topic incase there are multiple nodes running at once … 0, 1, 2, 3, …
-* port: the serial port
-* baud: the baud rate to connect at: 9600, …, 57600, 115200
-* debug: enable debugging info printing ... just put true if you want it
+* **uC:** a number that gets appended to the service topic incase there are multiple nodes running at once … 0, 1, 2, 3, …
+* **port:** the serial port
+* **baud:** the baud rate to connect at: 9600, …, 57600, 115200
+* **debug:** enable debugging info printing ... just put true if you want it
 
-## Published Services: 
+### Published Services: 
 
 The service message format is:
 
 * **request str:** command sent to robot
 * **request size:** size of returned message from robot, tells serial_node how much data to look for
-* request time: how long (in msec) to wait for a response before declaring failure
-* response str: the data sent back from the robot
+* **request time:** how long (in msec) to wait for a response before declaring failure
+* **response str:** the data sent back from the robot
 
 The service is advertized as uc<uC>_serial where <uC> is the number you passed on the command line
 
@@ -49,4 +49,4 @@ The service is advertized as uc<uC>_serial where <uC> is the number you passed o
 
 ## To Do
 
-* it basically works, but I am still trying to think how best to do it
+* it works
