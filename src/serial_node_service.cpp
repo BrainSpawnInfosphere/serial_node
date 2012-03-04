@@ -27,24 +27,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-//r2Serial.cpp
-
-// communicate via RS232 serial with a remote uController.
-// communicate with ROS using String type messages.
-// subscribe to command messages from ROS
-// publish command responses to ROS
-
-// program parameters - ucontroller# (0,1), serial port, baud rate
-
-//Thread main
-//  Subscribe to ROS String messages and send as commands to uController
-//Thread receive
-//  Wait for responses from uController and publish as a ROS messages
-
+/***********************************************
+ *
+ * rosrun serial_node <uC> <port> <baud>
+ *
+ * uC   = 0, 1, 2, ... what number micro controller 
+ * port = serial port, /dev/cu.usbserial
+ * baud = baud rate, 115200
+ *
+ ***********************************************/
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
-//#include <sstream>
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -57,9 +51,6 @@
 #include <queue> // C++ FIFO
 
 #include "serial_node/serial.h"
-
-//#define DEFAULT_BAUDRATE 19200
-//#define DEFAULT_SERIALPORT "/dev/ttyUSB0"
 
 
 class Serial {
@@ -84,16 +75,28 @@ public:
             serial_node::serial::Response& res);
     
     int read(char *buf, const int numbytes, const int trys=3);
+    bool readMsg(std::string&, int size, const int trys=3);
     //int read2(char *buf, const int numbytes, const int trys=3);
     int write(const char* buf, const int numbytes, const int trys=3);
     bool open(char *port, int baud);
     unsigned int available();
 
 //protected:
+    unsigned short checksum(char* buffer, int cnt);
     ros::ServiceServer service;
     int fd;   //serial port file pointer
     std::string name;
 };
+
+// check this!!
+unsigned short Serial::checksum(char* buffer, int cnt){
+    unsigned int sum = 0; // 32 bit int
+    
+    for(int i=0;i<cnt;i+=2) sum += *((unsigned short*)buffer++);
+    sum = (sum & 0xFFFF) + (sum >> 16);
+    
+    return(~sum);
+}
 
 //Initialize serial port, return file descriptor
 bool Serial::open(char *port, int baud){
@@ -104,8 +107,6 @@ bool Serial::open(char *port, int baud){
 		if( fd <= 0 ){
 			sprintf(msg,"ERROR: Unable to open port %s:%d - %s",port,baud,strerror(errno));
 			perror(msg);
-			//return(-1);
-			//throw kException(msg);
 			return false;
 		}
 		
@@ -133,38 +134,11 @@ bool Serial::open(char *port, int baud){
 
 #define __K_SERIAL_DEBUG__ 0
 
-/*
-int Serial::read2(char *buf, const int numbytes, const int trys){
-    int i, numread = 0, n = 0, numzeroes = 0;
-    
-    while (numread < numbytes){
-        //printf("%d .\n", fd);
-        n = ::pread (fd, buf, 1, numread);
-        
-        if (n < 0)
-            return -1;
-        else if (0 == n){
-            numzeroes++;
-            if (numzeroes > trys)
-                break;
-        }
-        else {
-            numread++;
-            numzeroes = 0;
-        
-        }
-        
-    }
-    
-    tcflush (fd, TCIFLUSH);			//discard data that was not read
-    return numread;
-}*/
-
 int Serial::read(char *buf, const int numbytes, const int trys){
     int i, numread = 0, n = 0, numzeroes = 0;
     
     while (numread < numbytes){
-        printf("%d .\n", fd);
+        //printf("%d .\n", fd);
         n = ::read (fd, (buf + numread), (numbytes - numread));
         if (n < 0)
             return -1;
@@ -187,6 +161,76 @@ int Serial::read(char *buf, const int numbytes, const int trys){
     return numread;
 }
 
+bool getChar(char& c, int fd, const int trys=20){
+    int n = 0;
+    int numzeroes = 0;
+    
+    // wait until start char found
+    while (numzeroes++ < trys){
+        n = ::read (fd, &c, 1);
+        if(n == 1){
+            return true;
+        }
+        usleep(1000);
+    }
+    
+    return false;
+}
+
+
+bool Serial::readMsg(std::string& ucString, int size, const int trys){
+    int numread = 0, n = 0, numzeroes = 0;
+    char c = 0;
+    char buf[128];
+    
+    // wait until start char found
+    while (numzeroes++ < trys){
+        n = ::read (fd, &c, 1);
+        if(c == '<') break;
+        usleep(1000);
+    }
+    
+    // get start char
+    while(c != '<'){
+        if(!getChar(c,fd)) return false;
+    }
+    buf[0] = c;
+    numread++;
+    //ROS_INFO("got start char");
+    
+    // get message char
+    if(!getChar(c,fd)) return false;
+    buf[1] = c;
+    numread++;
+    
+    //get message size
+    if(!getChar(c,fd)) return false;
+    buf[2] = c;
+    numread++;
+    n = (int)c;
+    //ROS_INFO("data size: %d",n);
+    
+    // get data section
+    if(n){
+        for(int i=0;i<n;i++){
+            if(!getChar(c,fd)) return false;
+            buf[3+i] = c;
+            numread++;
+        }
+    }
+    
+    // get end char
+    if(!getChar(c,fd)) return false;
+    if(c != '>') return false;
+    buf[numread] = c;
+    numread++;
+    //ROS_INFO("got end char");
+    
+    ucString.assign(buf,numread);
+    
+    return true;
+}
+
 
 /**
  * Determine the number of bytes in the input buffer without the need to 
@@ -203,7 +247,7 @@ unsigned int Serial::available(void){
 
 /**
  * Write a specific number of bytes from a buffer
- * \note write() will attempt to read the serial port several
+ * \note write() will attempt to write to the serial port several
  *       times before failing
  * \return number of bytes written
  */
@@ -236,19 +280,69 @@ int Serial::write(const char* buf, const int numbytes, const int trys){
 bool Serial::callback(serial_node::serial::Request& req,
             serial_node::serial::Response& res){
             
-    //Serial::flush();
+    Serial::flush();
     
     //ROS_INFO("%s command: %s", name.c_str(), req.str.c_str());
     Serial::write(req.str.c_str(),req.str.size());
     
+    //ROS_INFO("send: %s[%d]",req.str.c_str(),req.str.size());
     
-    //ROS_INFO("available: %d",available());
-    /*
-    if(req.size == 0){
-        res.str = " ";
-        return true;
+    // wait x msec
+    int miss = 0;
+    while( available() < req.size ){
+        if(miss++ < req.time) usleep(1000);
+        else { // resend
+            //Serial::flush();
+            Serial::write(req.str.c_str(),req.str.size());
+            miss = 0;
+            ROS_INFO("Resending: avail[%d]",Serial::available());
+        }
+        
+        //if(!ros::ok()) return 0;
+        //ROS_INFO("loop: %d", available());
     }
-    */
+    
+    
+    if(req.size > 0){
+        usleep(1000);
+        
+        //ROS_INFO("going to read");
+        //int rcvBufSize = 200;
+        //char ucResponse[rcvBufSize];
+        std::string ucString;
+        //int num = (req.size > available() ? available() : req.size);
+        bool ok = Serial::readMsg(ucString,req.time);
+        //ROS_INFO("got:%s",ucResponse);
+        //ROS_INFO("done to read");
+              
+        if (ok) { 
+            //ROS_INFO("%s response: %s", name.c_str(), ucResponse);
+            res.str = ucString;
+        }
+        else{
+            ROS_ERROR("Error: %s",req.str.c_str());
+            res.str = "error";
+            return false;
+        }
+    }
+    else res.str = "success";
+    
+    
+    Serial::flush();
+    return true;
+        
+} //ucCommandCallback
+
+/*
+//Process ROS command message, send to uController
+bool Serial::callback(serial_node::serial::Request& req,
+            serial_node::serial::Response& res){
+            
+    Serial::flush();
+    
+    //ROS_INFO("%s command: %s", name.c_str(), req.str.c_str());
+    Serial::write(req.str.c_str(),req.str.size());
+    
     // wait x msec
     int miss = 0;
     while( available() < req.size ){
@@ -271,7 +365,7 @@ bool Serial::callback(serial_node::serial::Request& req,
         ROS_INFO("%s response: %s", name.c_str(), ucResponse);
         res.str.assign(ucResponse,n);
     }
-    else /*if ( n == -1 || n == 0)*/{
+    else {
         ROS_ERROR("Read Error");
         res.str = " ";
         return false;
@@ -281,7 +375,7 @@ bool Serial::callback(serial_node::serial::Request& req,
     return true;
         
 } //ucCommandCallback
-
+*/
 
 int main(int argc, char **argv)
 {
@@ -290,7 +384,7 @@ int main(int argc, char **argv)
     int uC;
 
     //Initialize ROS
-    ros::init(argc, argv, "r2SerialDriver");
+    ros::init(argc, argv, "serial_node");
     ros::NodeHandle rosNode;
     
     Serial serial(rosNode,0);
