@@ -12,7 +12,7 @@ Simple node that connects to a serial port and launches a ROS service. Ideally I
 
 This node looks for a simple message format:
 
-   < message size data >
+    < message size data >
 
 where
 * < is the start of a message
@@ -33,7 +33,9 @@ At this time I do not do any kind of check sum, but I am thinking about it.
 * debug: enable debugging info printing ... just put true if you want it
 
 ## Published Services: 
+
 The service message format is:
+
 * request str: command sent to robot
 * request size: size of returned message from robot, tells serial_node how much data to look for
 * request time: how long (in msec) to wait for a response before declaring failure
