@@ -12,17 +12,18 @@ Simple node that connects to a serial port and launches a ROS service. Ideally I
 
 ## Command Line
 
-	rosrun serial_port serial_port <uC> <port> <baud>
+	rosrun serial_port serial_port <uC> <port> <baud> <debug>
 
 * uC: a number that gets appended to the service topic incase there are multiple nodes running at once … 0, 1, 2, 3, …
 * port: the serial port
 * baud: the baud rate to connect at: 9600, …, 57600, 115200
+* debug: enable debugging info printing ... just put true if you want it
 
 ### Published Services: 
 **string:** uc<uC>_serial where <uC> was passed as a command line parameter
  
 ### Example:
- 	rosrun serial_port serial_port 0 /dev/cu.usbserial 9600
+ 	rosrun serial_port serial_port 0 /dev/cu.usbserial 9600 true
 
 ## To Do
 

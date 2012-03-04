@@ -49,6 +49,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <queue> // C++ FIFO
+#include <iostream>
 
 #include "serial_node/serial.h"
 
@@ -60,12 +61,15 @@ public:
         sprintf(sname, "uc%d_serial",i);
         name = sname;
         service = n.advertiseService(name, &Serial::callback, this);
+        debug = false;
     }
     
     ~Serial(){
         ::close(fd);
         ROS_INFO("%s stopping", name.c_str());
     }
+    
+    inline void setDebug(bool b=true){ debug = b; }
 
     inline void flush(void){ //discard data that was not read
 		tcflush (fd, TCIFLUSH);
@@ -86,6 +90,7 @@ public:
     ros::ServiceServer service;
     int fd;   //serial port file pointer
     std::string name;
+    bool debug;
 };
 
 // check this!!
@@ -177,6 +182,25 @@ bool getChar(char& c, int fd, const int trys=20){
     return false;
 }
 
+inline char makeReadable(char c){
+    return (c < 32 ? '.' : (c > 126 ? '.' : c));
+}
+
+void printMsg(std::string& msg){
+    std::cout<<"---[[ "<<msg[1]<<" ]]-----------------------------------"<<std::endl;
+    std::cout<<"Size data: "<<(int)msg[2]<<"\t"<<"Size Msg: "<<msg.size()<<std::endl;
+    std::cout<<"Start/End characters: "<<msg[0]<<" / "<<msg[msg.size()-1]<<std::endl;
+    int size = (int)msg[2];
+    if(size > 0){
+        std::cout<<"Raw:  ";
+        for(int i=0;i<size;i++) std::cout<<(int)msg[3+i]<<' ';
+        std::cout<<std::endl;
+        std::cout<<"ASCII: ";
+        for(int i=0;i<size;i++) std::cout<<makeReadable(msg[3+i])<<' ';
+        std::cout<<std::endl;
+    }
+    std::cout<<"-------------------------------------------"<<std::endl;
+}
 
 bool Serial::readMsg(std::string& ucString, int size, const int trys){
     int numread = 0, n = 0, numzeroes = 0;
@@ -227,6 +251,8 @@ bool Serial::readMsg(std::string& ucString, int size, const int trys){
     //ROS_INFO("got end char");
     
     ucString.assign(buf,numread);
+    
+    if(debug) printMsg(ucString);
     
     return true;
 }
@@ -284,6 +310,7 @@ bool Serial::callback(serial_node::serial::Request& req,
     
     //ROS_INFO("%s command: %s", name.c_str(), req.str.c_str());
     Serial::write(req.str.c_str(),req.str.size());
+    //usleep(1000);
     
     //ROS_INFO("send: %s[%d]",req.str.c_str(),req.str.size());
     
@@ -295,7 +322,8 @@ bool Serial::callback(serial_node::serial::Request& req,
             //Serial::flush();
             Serial::write(req.str.c_str(),req.str.size());
             miss = 0;
-            ROS_INFO("Resending: avail[%d]",Serial::available());
+            ROS_INFO("Resending: avail[%d] need[%d]",
+                Serial::available(), req.size);
         }
         
         //if(!ros::ok()) return 0;
@@ -322,6 +350,7 @@ bool Serial::callback(serial_node::serial::Request& req,
         else{
             ROS_ERROR("Error: %s",req.str.c_str());
             res.str = "error";
+            Serial::flush();
             return false;
         }
     }
@@ -409,6 +438,11 @@ int main(int argc, char **argv)
             ROS_ERROR("ucontroller baud rate parameter invalid");
             return 1;
     }
+    
+    bool debug;
+    if (argc > 4) debug = (strcmp(argv[4],"true") ? false : true);
+    else debug = false;
+    serial.setDebug(debug);
 
     //ROS_INFO("Service %s on %s @ %d baud",serial.name.c_str(), port, baud);
     
