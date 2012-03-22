@@ -24,6 +24,8 @@ where
 
 At this time I do not do any kind of check sum, but I am thinking about it.
 
+Take a look in src/example.cpp for how to program to use this.
+
 ## Command Line
 
 	rosrun serial_port serial_port <uC> <port> <baud> <debug>
@@ -49,4 +51,4 @@ The service is advertized as uc<uC>_serial where <uC> is the number you passed o
 
 ## To Do
 
-* it works
+* simplify using this
