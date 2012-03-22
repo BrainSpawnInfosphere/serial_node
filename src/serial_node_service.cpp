@@ -110,6 +110,7 @@ bool Serial::open(char *port, int baud){
 		
 		fd = ::open( port, O_RDWR | O_NOCTTY | O_NDELAY /*| O_NONBLOCK*/ ); //may not need the nodelay
 		if( fd <= 0 ){
+		    // [FIXME 20120322] errno not defined in linux
 			sprintf(msg,"ERROR: Unable to open port %s:%d - %s",port,baud,strerror(errno));
 			perror(msg);
 			return false;
