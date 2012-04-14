@@ -62,6 +62,7 @@ public:
         name = sname;
         service = n.advertiseService(name, &Serial::callback, this);
         debug = false;
+        read_error = read_good = 0;
     }
     
     ~Serial(){
@@ -85,12 +86,14 @@ public:
     bool open(char *port, int baud);
     unsigned int available();
 
-//protected:
+protected:
     unsigned short checksum(char* buffer, int cnt);
     ros::ServiceServer service;
     int fd;   //serial port file pointer
     std::string name;
     bool debug;
+    unsigned long read_error;
+    unsigned long read_good;
 };
 
 // check this!!
@@ -325,6 +328,8 @@ bool Serial::callback(serial_node::serial::Request& req,
             miss = 0;
             ROS_INFO("Resending: avail[%d] need[%d]",
                 Serial::available(), req.size);
+            // QoS
+            ++read_error;
         }
         
         //if(!ros::ok()) return 0;
@@ -347,11 +352,17 @@ bool Serial::callback(serial_node::serial::Request& req,
         if (ok) { 
             //ROS_INFO("%s response: %s", name.c_str(), ucResponse);
             res.str = ucString;
+            
+            // QoS
+            ++read_good;
         }
         else{
             ROS_ERROR("Error: %s",req.str.c_str());
             res.str = "error";
             Serial::flush();
+            
+            // QoS
+            ++read_error;
             return false;
         }
     }
@@ -363,52 +374,9 @@ bool Serial::callback(serial_node::serial::Request& req,
         
 } //ucCommandCallback
 
-/*
-//Process ROS command message, send to uController
-bool Serial::callback(serial_node::serial::Request& req,
-            serial_node::serial::Response& res){
-            
-    Serial::flush();
-    
-    //ROS_INFO("%s command: %s", name.c_str(), req.str.c_str());
-    Serial::write(req.str.c_str(),req.str.size());
-    
-    // wait x msec
-    int miss = 0;
-    while( available() < req.size ){
-        if(miss++ < req.time) usleep(1000);
-        else break;
-        //ROS_INFO("loop: %d", available());
-    }
-    
-    //ROS_INFO("going to read");
-    int rcvBufSize = 200;
-    char ucResponse[rcvBufSize];
-    int num = (req.size > available() ? available() : req.size);
-    int n = Serial::read(ucResponse,num);
-    //ROS_INFO("done to read");
-    
-    
-    Serial::flush();
-    
-    if (n > 0) { 
-        ROS_INFO("%s response: %s", name.c_str(), ucResponse);
-        res.str.assign(ucResponse,n);
-    }
-    else {
-        ROS_ERROR("Read Error");
-        res.str = " ";
-        return false;
-    }
-    //else return false;
-    
-    return true;
-        
-} //ucCommandCallback
-*/
 
-int main(int argc, char **argv)
-{
+
+int main(int argc, char **argv){
     char *port;    //port name
     int baud;     //baud rate
     int uC;
