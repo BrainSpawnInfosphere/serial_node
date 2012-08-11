@@ -86,11 +86,12 @@ public:
     bool open(char *port, int baud);
     unsigned int available();
 
+    std::string name;
+    
 protected:
     unsigned short checksum(char* buffer, int cnt);
     ros::ServiceServer service;
     int fd;   //serial port file pointer
-    std::string name;
     bool debug;
     unsigned long read_error;
     unsigned long read_good;
