@@ -37,8 +37,8 @@
  *
  ***********************************************/
 
-#include "ros/ros.h"
-#include "std_msgs/String.h"
+#include <ros/ros.h>
+#include <std_msgs/String.h>
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -51,7 +51,7 @@
 #include <queue> // C++ FIFO
 #include <iostream>
 
-#include "serial_node/serial.h"
+#include <serial_node/serial.h>
 
 
 class Serial {
