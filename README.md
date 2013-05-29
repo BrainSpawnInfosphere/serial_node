@@ -18,11 +18,11 @@ This node looks for a simple message format:
 
 where
 
-* < is the start of a message
+* **<** is the start of a message
 * message is one char (e.g., m, a, c, etc) that defines the type of message
 * size is one byte that describes how much data follows, can be 0-255
 * data is the message data
-* > is the end of a message
+* **>** is the end of a message
 
 At this time I do not do any kind of check sum, but I am thinking about it.
 
