@@ -29,7 +29,7 @@
 
 /***********************************************
  *
- * rosrun serial_node <uC> <port> <baud>
+ * rosrun ip_serial <uC> <port> <baud>
  *
  * uC   = 0, 1, 2, ... what number micro controller 
  * port = serial port, /dev/cu.usbserial
@@ -51,7 +51,7 @@
 #include <queue> // C++ FIFO
 #include <iostream>
 
-#include <serial_node/serial.h>
+#include <ip_serial/serial.h>
 
 
 class Serial {
@@ -76,8 +76,8 @@ public:
 		tcflush (fd, TCIFLUSH);
 	}
 	
-    bool callback(serial_node::serial::Request& req,
-            serial_node::serial::Response& res);
+    bool callback(ip_serial::serial::Request& req,
+            ip_serial::serial::Response& res);
     
     int read(char *buf, const int numbytes, const int trys=3);
     bool readMsg(std::string&, int size, const int trys=3);
@@ -97,6 +97,7 @@ protected:
     unsigned long read_good;
 };
 
+/*
 // check this!!
 unsigned short Serial::checksum(char* buffer, int cnt){
     unsigned int sum = 0; // 32 bit int
@@ -106,6 +107,7 @@ unsigned short Serial::checksum(char* buffer, int cnt){
     
     return(~sum);
 }
+*/
 
 //Initialize serial port, return file descriptor
 bool Serial::open(char *port, int baud){
@@ -308,8 +310,8 @@ int Serial::write(const char* buf, const int numbytes, const int trys){
 }
 
 //Process ROS command message, send to uController
-bool Serial::callback(serial_node::serial::Request& req,
-            serial_node::serial::Response& res){
+bool Serial::callback(ip_serial::serial::Request& req,
+            ip_serial::serial::Response& res){
             
     Serial::flush();
     
@@ -383,7 +385,7 @@ int main(int argc, char **argv){
     int uC;
 
     //Initialize ROS
-    ros::init(argc, argv, "serial_node");
+    ros::init(argc, argv, "ip_serial");
     ros::NodeHandle rosNode;
     
     Serial serial(rosNode,0);

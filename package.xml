@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>serial_node</name>
+  <name>ip_serial</name>
   <version>0.0.0</version>
-  <description>serial_node</description>
+  <description>ip_serial</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->

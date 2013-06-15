@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(serial_node)
+project(ip_serial)
+
+###
+# catkin_make -DCMAKE_INSTALL_PREFIX=/Users/kevin/catkin/install install
+###
 
 ## Find catkin and any catkin packages on which
 find_package(catkin REQUIRED COMPONENTS roscpp genmsg std_msgs)
@@ -16,7 +20,7 @@ generate_messages(DEPENDENCIES std_msgs)
 ## Declare things to be passed to other projects
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
+#  LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS roscpp std_msgs # catkin-pkg1 catkin-pkg2
 #  DEPENDS Boost # other-3rd-party-libraries
 )
@@ -25,18 +29,21 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
 ## Declare a cpp executable
-add_executable(serial_node src/serial_node_service.cpp)
-target_link_libraries(serial_node ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_executable(${PROJECT_NAME}_node src/serial_node_service.cpp)
+target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 ## Add dependencies to the executable
 # add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME})
 
+message("hello there fuck face")
+message("=  ${CATKIN_PACKAGE_BIN_DESTINATION} =")
+
 ## Mark executables and/or libraries for installation
-# install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
+ install(TARGETS ${PROJECT_NAME}_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 ## Mark cpp header files for installation
 # install(DIRECTORY include/${PROJECT_NAME}/
