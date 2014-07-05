@@ -8,10 +8,7 @@
 
 **Website:** http://github.com/walchko
 
-Simple node that connects to a serial port and launches a ROS service. Ideally I would 
-use rosserial, but that doesn't seem to work reliably and there appear (at this time) not 
-to be any real progress done on it in the last several months.
-
+Simple node that connects to a serial port and launches a ROS service. 
 This node looks for a simple message format:
 
     < message size data >

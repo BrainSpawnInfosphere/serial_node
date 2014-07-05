@@ -6,7 +6,7 @@ project(ip_serial)
 ###
 
 ## Find catkin and any catkin packages on which
-find_package(catkin REQUIRED COMPONENTS roscpp genmsg std_msgs)
+find_package(catkin REQUIRED COMPONENTS roscpp rospy genmsg std_msgs message_generation)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -35,7 +35,6 @@ target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES} ${Boost_LIBRARIES
 ## Add dependencies to the executable
 # add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME})
 
-message("hello there fuck face")
 message("=  ${CATKIN_PACKAGE_BIN_DESTINATION} =")
 
 ## Mark executables and/or libraries for installation

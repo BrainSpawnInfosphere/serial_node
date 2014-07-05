@@ -6,9 +6,11 @@
 #       wait before looking for a response from uC
 # -----------
 # str: returned message from uC
+# NOTE: string already holds size and time wasn't
+#       useful in practice
 ######################################
 string str 
-uint8 size
-uint16 time
+#uint8 size
+#uint16 time
 --------
 string str

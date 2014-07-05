@@ -79,7 +79,8 @@ public:
     bool callback(ip_serial::serial::Request& req,
             ip_serial::serial::Response& res);
     
-    int read(char *buf, const int numbytes, const int trys=3);
+    bool read(char *buf, const int numbytes, const int trys=3);
+    bool getChar(char& c, int fd, const int trys=20);
     bool readMsg(std::string&, int size, const int trys=3);
     //int read2(char *buf, const int numbytes, const int trys=3);
     int write(const char* buf, const int numbytes, const int trys=3);
@@ -146,14 +147,14 @@ bool Serial::open(char *port, int baud){
 
 #define __K_SERIAL_DEBUG__ 0
 
-int Serial::read(char *buf, const int numbytes, const int trys){
+bool Serial::read(char *buf, const int numbytes, const int trys){
     int i, numread = 0, n = 0, numzeroes = 0;
     
     while (numread < numbytes){
         //printf("%d .\n", fd);
         n = ::read (fd, (buf + numread), (numbytes - numread));
         if (n < 0)
-            return -1;
+            return false;
         else if (0 == n){
             numzeroes++;
             if (numzeroes > trys)
@@ -170,14 +171,14 @@ int Serial::read(char *buf, const int numbytes, const int trys){
     }
     
     //tcflush (fd, TCIFLUSH);			//discard data that was not read
-    return numread;
+    return true;
 }
 
-bool getChar(char& c, int fd, const int trys=20){
+bool Serial::getChar(char& c, int fd, const int trys){
     int n = 0;
     int numzeroes = 0;
     
-    // wait until start char found
+    // Try to get a good char
     while (numzeroes++ < trys){
         n = ::read (fd, &c, 1);
         if(n == 1){
@@ -209,50 +210,87 @@ void printMsg(std::string& msg){
     std::cout<<"-------------------------------------------"<<std::endl;
 }
 
+// rename fromSerialPort()
 bool Serial::readMsg(std::string& ucString, int size, const int trys){
     int numread = 0, n = 0, numzeroes = 0;
     char c = 0;
-    char buf[128];
+    char buf[128]; // why not a vector?
     
     // wait until start char found
     while (numzeroes++ < trys){
-        n = ::read (fd, &c, 1);
+        //n = ::read (fd, &c, 1);
+        getChar(c,fd);
         if(c == '<') break;
         usleep(1000);
     }
+    if(c != '<'){
+    	ROS_ERROR("Serial::readMsg(): Couldn't find start char");
+    	return false;
+    }
+    
+    // re-write
+    /*
+    while (++numzeroes){
+        n = ::read (fd, &c, 1); // check for error, Serial::readChar(fd,char)
+        if(c == '<') break;
+        usleep(1000);
+        if(numzeros > trys) return false;
+    }
+    */
     
     // get start char
-    while(c != '<'){
-        if(!getChar(c,fd)) return false;
-    }
+    //while(c != '<'){
+    //    if(!getChar(c,fd)) return false; // check for error, Serial::readChar(fd,char)
+    //}
+    
     buf[0] = c;
     numread++;
-    //ROS_INFO("got start char");
+    //ROS_INFO("got start char: %c", buf[0]);
     
     // get message char
     if(!getChar(c,fd)) return false;
     buf[1] = c;
     numread++;
     
-    //get message size
-    if(!getChar(c,fd)) return false;
-    buf[2] = c;
-    numread++;
-    n = (int)c;
-    //ROS_INFO("data size: %d",n);
+    if(size>0){ // there is a data section
+    	//get message size
+    	if(!getChar(c,fd)) return false;
+    	//ROS_INFO("read in from serial size: %d should be: %d", (int)c, size);
     
-    // get data section
-    if(n){
-        for(int i=0;i<n;i++){
-            if(!getChar(c,fd)) return false;
-            buf[3+i] = c;
-            numread++;
-        }
+    	if(size != (int)c){
+    		ROS_ERROR("readMsg(%c): wrong data size",buf[1]);
+    		return false;
+    	}
+    
+    	buf[2] = c; // message size
+    	numread++;
+    	n = (int)c;
+    	//ROS_INFO("data size: %d",n);
+    
+    	// get data section
+    	// readString(fd,buffer,len)
+        	for(int i=0;i<n;i++){
+            	if(!getChar(c,fd)){
+            		ROS_ERROR("readMsg() couldn't fill buffer: %d of %d",i,n);
+            		return false;
+            	}
+            	buf[3+i] = c;
+            	numread++;
+        	}
+    	//buf[numread+1] = '\0';
+    	//ROS_INFO("readMsg() buffer so far: buffer(%d)[%s]",numread,buf);
     }
     
     // get end char
-    if(!getChar(c,fd)) return false;
-    if(c != '>') return false;
+    if(!getChar(c,fd)){
+    	ROS_ERROR("readMsg() couldn't read end char");
+    	return false;
+    }
+    if(c != '>'){
+    	ROS_ERROR("readMsg() couldn't get end char: %c",c);
+    	return false;
+    }
+    
     buf[numread] = c;
     numread++;
     //ROS_INFO("got end char");
@@ -267,7 +305,7 @@ bool Serial::readMsg(std::string& ucString, int size, const int trys){
 
 /**
  * Determine the number of bytes in the input buffer without the need to 
- * read it.
+ * read it.  DOES THIS WORK???
  */
 unsigned int Serial::available(void){
     int bytes = 0;
@@ -315,12 +353,16 @@ bool Serial::callback(ip_serial::serial::Request& req,
             
     Serial::flush();
     
+    if(debug) printMsg(req.str);
+    
+    // Send Message to uC
     //ROS_INFO("%s command: %s", name.c_str(), req.str.c_str());
     Serial::write(req.str.c_str(),req.str.size());
     //usleep(1000);
     
-    //ROS_INFO("send: %s[%d]",req.str.c_str(),req.str.size());
+    //ROS_INFO("send: %s[%d]",req.str.c_str(),(int)req.str.size());
     
+    /* Value????
     // wait x msec
     int miss = 0;
     while( available() < req.size ){
@@ -338,29 +380,26 @@ bool Serial::callback(ip_serial::serial::Request& req,
         //if(!ros::ok()) return 0;
         //ROS_INFO("loop: %d", available());
     }
+    */
     
     
     if(req.size > 0){
         usleep(1000);
         
-        //ROS_INFO("going to read");
-        //int rcvBufSize = 200;
-        //char ucResponse[rcvBufSize];
+        //ROS_INFO("Callback(): going to read, bytes available: %d",(int)available());
         std::string ucString;
-        //int num = (req.size > available() ? available() : req.size);
-        bool ok = Serial::readMsg(ucString,req.time);
-        //ROS_INFO("got:%s",ucResponse);
+        bool ok = Serial::readMsg(ucString,req.size);
         //ROS_INFO("done to read");
               
         if (ok) { 
-            //ROS_INFO("%s response: %s", name.c_str(), ucResponse);
+            //ROS_INFO("%s response: %s", name.c_str(), ucString.c_str());
             res.str = ucString;
             
             // QoS
             ++read_good;
         }
         else{
-            ROS_ERROR("Error: %s",req.str.c_str());
+            ROS_ERROR("Serial::callback(): %s",req.str.c_str());
             res.str = "error";
             Serial::flush();
             
