@@ -81,7 +81,7 @@ public:
     
     bool read(char *buf, const int numbytes, const int trys=3);
     bool getChar(char& c, int fd, const int trys=20);
-    bool readMsg(std::string&, int size, const int trys=3);
+    bool readMsg(std::string&, /*int size,*/ const int trys=3);
     //int read2(char *buf, const int numbytes, const int trys=3);
     int write(const char* buf, const int numbytes, const int trys=3);
     bool open(char *port, int baud);
@@ -115,11 +115,18 @@ bool Serial::open(char *port, int baud){
         char msg[70];
 		struct termios options;
 		
-		fd = ::open( port, O_RDWR | O_NOCTTY | O_NDELAY /*| O_NONBLOCK*/ ); //may not need the nodelay
+		int loop = 0;
+		while (fd <=0 && loop++ < 10){
+			fd = ::open( port, O_RDWR | O_NOCTTY | O_NDELAY /*| O_NONBLOCK*/ ); //may not need the nodelay
+			//usleep(100000);
+			std::cout<<"."<<std::endl;
+		}
+		std::cout<<std::endl;
+		
 		if( fd <= 0 ){
 		    // [FIXME 20120322] errno not defined in linux
-			sprintf(msg,"ERROR: Unable to open port %s:%d - %s",port,baud,strerror(errno));
-			perror(msg);
+			ROS_ERROR("Unable to open port %s:%d - %s",port,baud,strerror(errno));
+			//perror(msg);
 			return false;
 		}
 		
@@ -146,7 +153,7 @@ bool Serial::open(char *port, int baud){
 } //serialInit
 
 #define __K_SERIAL_DEBUG__ 0
-
+/*
 bool Serial::read(char *buf, const int numbytes, const int trys){
     int i, numread = 0, n = 0, numzeroes = 0;
     
@@ -173,7 +180,7 @@ bool Serial::read(char *buf, const int numbytes, const int trys){
     //tcflush (fd, TCIFLUSH);			//discard data that was not read
     return true;
 }
-
+*/
 bool Serial::getChar(char& c, int fd, const int trys){
     int n = 0;
     int numzeroes = 0;
@@ -194,7 +201,19 @@ inline char makeReadable(char c){
     return (c < 32 ? '.' : (c > 126 ? '.' : c));
 }
 
+bool valideMessageFormat(std::string m){
+	if(m[0] != '<') return false;
+	if(m[m.size()-1] != '>') return false;
+	
+	if(m.size() > 3) if((int)m[2]+4 != (int)m.size()) return false;
+	
+	return true;
+}
+
 void printMsg(std::string& msg){
+	int sz = msg.size();
+	
+	if(sz > 3){
     std::cout<<"---[[ "<<msg[1]<<" ]]-----------------------------------"<<std::endl;
     std::cout<<"Size data: "<<(int)msg[2]<<"\t"<<"Size Msg: "<<msg.size()<<std::endl;
     std::cout<<"Start/End characters: "<<msg[0]<<" / "<<msg[msg.size()-1]<<std::endl;
@@ -208,8 +227,169 @@ void printMsg(std::string& msg){
         std::cout<<std::endl;
     }
     std::cout<<"-------------------------------------------"<<std::endl;
+    }
+    else {
+    std::cout<<"---[[ "<<msg[1]<<" ]]-----------------------------------"<<std::endl;
+    std::cout<<"Size data: 0"<<"\t"<<"Size Msg: "<<msg.size()<<std::endl;
+    std::cout<<"Start/End characters: "<<msg[0]<<" / "<<msg[2]<<std::endl;
+    std::cout<<"-------------------------------------------"<<std::endl;
+    }
 }
 
+/**
+
+* All messaging is initiated from Computer to uC - one way, with a return ACK
+* All messages return an ACK with or without data. 
+* If there is an error, the ACK is <e> or <E>
+* IP serial needs to know if ACK has data ... I think - no
+
+Test: rosservice call /uc0_serial "<v>" 
+
+(Cmd)		Cmd		(ACK)		ACK
+Computer	Size	uC			Size	Description
++-----------------------------------------------------------------+
+Any Msg		X		<e>			0		If something went wrong on uC, otherwise normal msg
+Any Msg		X		<E>			0		If something went wrong on ip_serial, otherwise normal msg
+<h>			0		<h>			0		Halt motors
+<msxxxxx>	5		<m>			0		Motor commands
+<psx>		1		<p>			0		Play sound
+<r>			0		<r>			0		Reset
+<s>			0		<ssxx...xx>	20		Sensor values (a,g,m,b,ir,batt,...)
+<S>			0		<Ssxx...xx>	X		Status, sends error msgs ... value??
+<t>			0		<t>			0		Motor test, just turns them
+<v>			0		<vsxx...xx>	10		SW version
++-----------------------------------------------------------------+
+**/
+
+
+/*
+bool Serial::readMsg(std::string& ucString, const int trys){
+	char buf[128];
+	unsigned int numread=0;
+	char c = 0;
+	
+	// put everything into local buffer
+	while (getChar(c,fd)) buf[numread++] = c;
+	
+	buf[numread] = '\0';
+	ROS_INFO("buf[%d]: %s",numread,buf);
+	
+	if(numread < 2) {
+		ROS_ERROR("Serial::readMsg(): Couldn't fill buffer");
+		return false;
+	}
+	
+	unsigned int i=0;
+	c = 0;
+	while(c != '<' && i < numread-3) c = buf[i++];
+	if(c != '<') {
+    	ROS_ERROR("Serial::readMsg(): Couldn't find start char");
+    	return false;
+    }
+    
+    ucString.push_back(c); // start
+    ucString.push_back(buf[i++]); // message
+    
+    c = buf[i++]; // end or size char
+    ucString.push_back(c); // unknown
+    
+    if(c == '>') {;} // NOP
+    else { // more data
+    	//if( (numread-i-(unsigned int)c) < 0) {
+    	if( numread >= i+(unsigned int)c + 1 ) {
+    		ROS_ERROR("Serial::readMsg(): Not enough info");
+    		return false;
+    	}
+    	//for (unsigned int j=0;j<(unsigned int)c;++j) ucString
+    	ucString.append(&buf[i],(unsigned int)c+1); // grab data and end char
+    	i+=(unsigned int)c; // advance pointer data, point to end char
+    	
+    	if(buf[i] != '>'){ // didn't find end char
+    		ROS_ERROR("readMsg() couldn't get end char: %c",c);
+    		return false;
+    	}
+    }
+    
+    return true;
+}
+ */   	
+
+
+bool Serial::readMsg(std::string& ucString, const int trys){
+    int numread = 0, n = 0, numzeroes = 0;
+    char c = 0;
+    char buf[128]; // why not a vector?
+    
+    // wait until start char found
+    while (numzeroes++ < trys){
+        getChar(c,fd);
+        if(c == '<') break;
+        usleep(100);
+    }
+    if(c != '<'){
+    	ROS_ERROR("Serial::readMsg(): Couldn't find start char");
+    	return false;
+    }
+    
+    buf[0] = c;
+    numread++;
+    //ROS_INFO("got start char: %c", buf[0]);
+    
+    // get message char
+    if(!getChar(c,fd)) return false;
+    buf[1] = c;
+    numread++;
+    
+    // get end char or message size
+    if(!getChar(c,fd)){
+    	ROS_ERROR("readMsg() couldn't read end char or data size char");
+    	return false;
+    }
+    if(c == '>'){ // found end char 
+    	buf[numread] = c;
+    	numread++;
+    }
+    else {// there is a data section
+    	//get message size
+    	//if(!getChar(c,fd)) return false;
+    
+    	buf[2] = c; // message size
+    	numread++;
+    	n = (int)c;
+    	//ROS_INFO("data size: %d",n);
+    
+    	// get data section
+        	for(int i=0;i<n;i++){
+            	if(!getChar(c,fd)){
+            		ROS_ERROR("readMsg() couldn't fill buffer: %d of %d",i,n);
+            		return false;
+            	}
+            	buf[3+i] = c;
+            	numread++;
+        	}
+    	// get end char
+    	if(!getChar(c,fd)){
+    		ROS_ERROR("readMsg() couldn't read end char");
+    		return false;
+    	}
+    	if(c != '>'){
+    		ROS_ERROR("readMsg() couldn't get end char: %c",c);
+    		return false;
+    	}
+    
+    	buf[numread] = c;
+    	numread++;
+    }
+    
+    ucString.assign(buf,numread);
+    
+    if(debug) printMsg(ucString);
+    
+    return true;
+}
+
+
+/*
 // rename fromSerialPort()
 bool Serial::readMsg(std::string& ucString, int size, const int trys){
     int numread = 0, n = 0, numzeroes = 0;
@@ -218,30 +398,14 @@ bool Serial::readMsg(std::string& ucString, int size, const int trys){
     
     // wait until start char found
     while (numzeroes++ < trys){
-        //n = ::read (fd, &c, 1);
         getChar(c,fd);
         if(c == '<') break;
-        usleep(1000);
+        usleep(100);
     }
     if(c != '<'){
     	ROS_ERROR("Serial::readMsg(): Couldn't find start char");
     	return false;
     }
-    
-    // re-write
-    /*
-    while (++numzeroes){
-        n = ::read (fd, &c, 1); // check for error, Serial::readChar(fd,char)
-        if(c == '<') break;
-        usleep(1000);
-        if(numzeros > trys) return false;
-    }
-    */
-    
-    // get start char
-    //while(c != '<'){
-    //    if(!getChar(c,fd)) return false; // check for error, Serial::readChar(fd,char)
-    //}
     
     buf[0] = c;
     numread++;
@@ -301,7 +465,7 @@ bool Serial::readMsg(std::string& ucString, int size, const int trys){
     
     return true;
 }
-
+*/
 
 /**
  * Determine the number of bytes in the input buffer without the need to 
@@ -362,33 +526,13 @@ bool Serial::callback(ip_serial::serial::Request& req,
     
     //ROS_INFO("send: %s[%d]",req.str.c_str(),(int)req.str.size());
     
-    /* Value????
-    // wait x msec
-    int miss = 0;
-    while( available() < req.size ){
-        if(miss++ < req.time) usleep(1000);
-        else { // resend
-            //Serial::flush();
-            Serial::write(req.str.c_str(),req.str.size());
-            miss = 0;
-            ROS_INFO("Resending: avail[%d] need[%d]",
-                Serial::available(), req.size);
-            // QoS
-            ++read_error;
-        }
-        
-        //if(!ros::ok()) return 0;
-        //ROS_INFO("loop: %d", available());
-    }
-    */
-    
-    
-    if(req.size > 0){
+    // always assume some sort of ACK is returned
         usleep(1000);
         
         //ROS_INFO("Callback(): going to read, bytes available: %d",(int)available());
         std::string ucString;
-        bool ok = Serial::readMsg(ucString,req.size);
+        //bool ok = Serial::readMsg(ucString,req.size);
+        bool ok = Serial::readMsg(ucString);
         //ROS_INFO("done to read");
               
         if (ok) { 
@@ -397,22 +541,19 @@ bool Serial::callback(ip_serial::serial::Request& req,
             
             // QoS
             ++read_good;
+            
+            Serial::flush();
+            return true;
         }
         else{
-            ROS_ERROR("Serial::callback(): %s",req.str.c_str());
-            res.str = "error";
-            Serial::flush();
+            ROS_ERROR("Serial::callback(): %s, no returned message",req.str.c_str());
+            res.str = std::string("<E>");
             
             // QoS
             ++read_error;
-            return false;
+        	Serial::flush();
+            return true;
         }
-    }
-    else res.str = "success";
-    
-    
-    Serial::flush();
-    return true;
         
 } //ucCommandCallback
 
