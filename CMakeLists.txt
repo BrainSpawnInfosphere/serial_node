@@ -6,50 +6,59 @@ project(ip_serial)
 ###
 
 ## Find catkin and any catkin packages on which
-find_package(catkin REQUIRED COMPONENTS roscpp rospy genmsg std_msgs message_generation)
+find_package(catkin REQUIRED COMPONENTS 
+  roscpp 
+  rospy 
+  genmsg 
+  std_msgs 
+  message_generation
+)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
 ## Generate services in the 'srv' folder
-add_service_files(DIRECTORY srv FILES serial.srv)
+add_service_files(
+   FILES 
+      serial.srv
+)
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(DEPENDENCIES std_msgs)
+generate_messages(
+   DEPENDENCIES 
+      std_msgs
+)
 
 ## Declare things to be passed to other projects
 catkin_package(
-  INCLUDE_DIRS include
-#  LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp std_msgs # catkin-pkg1 catkin-pkg2
+  #INCLUDE_DIRS include
+  LIBRARIES ${PROJECT_NAME}
+  CATKIN_DEPENDS roscpp std_msgs message_runtime
 #  DEPENDS Boost # other-3rd-party-libraries
 )
 
 ## Specify additional locations of header files
-include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+include_directories(${catkin_INCLUDE_DIRS} ) #${Boost_INCLUDE_DIRS})
 
 ## Declare a cpp executable
-add_executable(${PROJECT_NAME}_node src/serial_node_service.cpp)
-target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_executable(ip_serial src/serial_node_service.cpp)
+target_link_libraries(ip_serial ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencpp) # this will build the msgs/srv
 
-## Add dependencies to the executable
-# add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME})
-
-message("=  ${CATKIN_PACKAGE_BIN_DESTINATION} =")
+message("Look at me:  ${CATKIN_PACKAGE_BIN_DESTINATION} =")
 
 ## Mark executables and/or libraries for installation
- install(TARGETS ${PROJECT_NAME}_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+ install(TARGETS ${PROJECT_NAME}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+ install(DIRECTORY include/${PROJECT_NAME}/
+   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+   FILES_MATCHING PATTERN "*.h"
+   PATTERN ".svn" EXCLUDE
+ )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
